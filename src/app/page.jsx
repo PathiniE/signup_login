@@ -10,8 +10,8 @@ export default function Home() {
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold mb-4">Welcome to the Auth App</h2>
-        <p className="mb-6">
+        <h2 className="text-2xl font-bold mb-4 text-black">Welcome to the Auth App</h2>
+        <p className="mb-6 text-gray-900">
           {session
             ? `You are signed in as ${session.user.name}`
             : 'Please sign in or sign up to continue'}
