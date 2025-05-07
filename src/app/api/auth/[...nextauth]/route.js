@@ -1,23 +1,10 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { MongoDBAdapter } from '@next-auth/mongodb-adapter';
-import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
 import clientPromise from '../../../../../lib/mongodb';
+import MongoDBAdapter from '../../../../../lib/auth/mongodb-adapter';
 import User from '../../../../../models/User';
-
-// Connect to MongoDB
-const connectDB = async () => {
-  try {
-    if (mongoose.connection.readyState !== 1) {
-      await mongoose.connect(process.env.MONGODB_URI);
-      console.log('MongoDB connected');
-    }
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw new Error('Failed to connect to MongoDB');
-  }
-};
+import bcrypt from 'bcryptjs';
+import dbConnect from '../../../../../lib/mongoose';
 
 export const authOptions = {
   adapter: MongoDBAdapter(clientPromise),
@@ -25,59 +12,59 @@ export const authOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        await connectDB();
+        await dbConnect();
         
         try {
+          // Find user in the database
           const user = await User.findOne({ email: credentials.email }).select('+password');
           
-          if (!user) {
+          // If no user found or password doesn't match
+          if (!user || !(await bcrypt.compare(credentials.password, user.password))) {
             return null;
           }
           
-          const isPasswordMatch = await bcrypt.compare(credentials.password, user.password);
-          
-          if (!isPasswordMatch) {
-            return null;
-          }
-          
+          // Return user object (without password)
           return {
             id: user._id.toString(),
             name: user.name,
             email: user.email,
+            role: user.role
           };
         } catch (error) {
-          console.error('Authentication error:', error);
+          console.error('Auth error:', error);
           return null;
         }
       }
-    }),
+    })
   ],
   session: {
-    strategy: 'jwt',
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
+        session.user.role = token.role;
       }
       return session;
-    },
+    }
   },
   pages: {
     signIn: '/signin',
-    signUp: '/signup',
-    error: '/signin', // Error messages will be displayed on the sign-in page
+    signOut: '/',
+    error: '/auth/error',
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
